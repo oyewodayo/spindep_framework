@@ -1,9 +1,15 @@
-import os                          # ← add this
+# // asymmetry.py
+
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
+
+# ============================================================
+# LOAD DATASET
+# ============================================================
 
 def load_dataset(filepath):
     df = pd.read_csv(filepath, header=None, names=["lambda_m", "gAgA_abs"])
@@ -13,6 +19,10 @@ def load_dataset(filepath):
     return df
 
 
+# ============================================================
+# LOG INTERPOLATOR
+# ============================================================
+
 def make_log_interpolator(df):
     log_lam = np.log10(df["lambda_m"].values)
     log_g   = np.log10(df["gAgA_abs"].values)
@@ -21,7 +31,12 @@ def make_log_interpolator(df):
     return lambda lam: 10**f(np.log10(lam))
 
 
+# ============================================================
+# COMPUTE ASYMMETRY
+# ============================================================
+
 def compute_asymmetry(df_matter, df_antimatter, n_points=200):
+
     lam_min = max(df_matter["lambda_m"].min(),
                   df_antimatter["lambda_m"].min())
     lam_max = min(df_matter["lambda_m"].max(),
@@ -44,8 +59,13 @@ def compute_asymmetry(df_matter, df_antimatter, n_points=200):
 
     denom = g_m + g_a
     A = np.where(denom > 0, (g_m - g_a) / denom, np.nan)
+
     return lam_grid, A, (g_m, g_a)
 
+
+# ============================================================
+# CHI-SQUARED SENSITIVITY
+# ============================================================
 
 def chi_squared_sensitivity(g_m, g_a, sigma_frac=0.1):
     from scipy.stats import chi2 as chi2_dist
@@ -57,12 +77,18 @@ def chi_squared_sensitivity(g_m, g_a, sigma_frac=0.1):
     return chi2_total, dof, p_value
 
 
+# ============================================================
+# PLOT ASYMMETRY
+# ============================================================
+
 def plot_asymmetry(lam_grid, A, g_m, g_a,
                    matter_label, antimatter_label,
                    potential_term, output_path=None):
+
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8),
                                    sharex=True,
                                    gridspec_kw={"height_ratios": [2, 1]})
+
     ax1.loglog(lam_grid, g_m, color="steelblue",
                lw=2, label=f"Matter: {matter_label}")
     ax1.loglog(lam_grid, g_a, color="crimson",
@@ -85,10 +111,16 @@ def plot_asymmetry(lam_grid, A, g_m, g_a,
     ax2.grid(True, which="both", ls="--", alpha=0.4)
 
     plt.tight_layout()
+
     if output_path:
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.show()
 
+    plt.close()  # avoids the FigureCanvasAgg non-interactive warning
+
+
+# ============================================================
+# LABEL FROM FILENAME
+# ============================================================
 
 def label_from_filename(filepath):
     """Auto-generate a plot label from the CSV filename."""
@@ -112,35 +144,42 @@ def label_from_filename(filepath):
     return f"{author} {year} ({pair})"
 
 
-# ── Example usage ─────────────────────────────────────────────
-BASE = (
-    "/mnt/c/Users/DELL/Documents/MSC RESEARCH/Data/"
-    "Spin-Dependent-5th-Force-Limits-v3.2/"
-    "Lei-Cong-Spin-Dependent-5th-Force-Limits-a604398/"
-    "Dataset/normalized/gAgA/lepton-lepton"
-)
+# ============================================================
+# EXAMPLE USAGE  (only runs when executed directly)
+# python3 asymmetry.py
+# ============================================================
 
-matter_file    = BASE + "/2Ficek_2017_V2_m_abs_ee.csv"
-antimatter_file = BASE + "/2Karshenboim_2011_3_m_abs_eebar.csv"
+if __name__ == "__main__":
 
-# Labels generated from filenames — never typed by hand
-label_m  = label_from_filename(matter_file)
-label_am = label_from_filename(antimatter_file)
-print(f"Matter label:    {label_m}")
-print(f"Antimatter label: {label_am}")
+    # --------------------------------------------------------
+    # EXAMPLE ANALYSIS
+    # The location of the datasets may need to be updated based on your local setup.
+    # --------------------------------------------------------
 
-df_matter     = load_dataset(matter_file)
-df_antimatter = load_dataset(antimatter_file)
+    BASE = "~/spindep_framework/spindep/datasets/normalized/gAgA/lepton-lepton"
 
-lam, A, (g_m, g_a) = compute_asymmetry(df_matter, df_antimatter)
+    matter_file     = BASE + "/2Ficek_2017_V2_m_abs_ee.csv"
+    antimatter_file = BASE + "/2Karshenboim_2011_3_m_abs_eebar.csv"
 
-if lam is not None:
-    chi2, dof, pval = chi_squared_sensitivity(g_m, g_a, sigma_frac=0.1)
-    print(f"χ² = {chi2:.2f}  |  dof = {dof}  |  p-value = {pval:.4f}")
-    print(f"Mean |A_α| = {np.nanmean(np.abs(A)):.4f}")
+    label_m  = label_from_filename(matter_file)
+    label_am = label_from_filename(antimatter_file)
+    print(f"Matter label:     {label_m}")
+    print(f"Antimatter label: {label_am}")
 
-    plot_asymmetry(lam, A, g_m, g_a,
-                   matter_label=label_m,       # ← from filename
-                   antimatter_label=label_am,  # ← from filename
-                   potential_term="V2 gAgA",
-                   output_path="V2_asymmetry_ee_vs_eebar.pdf")
+    df_matter     = load_dataset(matter_file)
+    df_antimatter = load_dataset(antimatter_file)
+
+    lam, A, (g_m, g_a) = compute_asymmetry(df_matter, df_antimatter)
+
+    if lam is not None:
+        chi2, dof, pval = chi_squared_sensitivity(g_m, g_a, sigma_frac=0.1)
+        print(f"χ² = {chi2:.2f}  |  dof = {dof}  |  p-value = {pval:.4f}")
+        print(f"Mean |A_α| = {np.nanmean(np.abs(A)):.4f}")
+
+        plot_asymmetry(
+            lam, A, g_m, g_a,
+            matter_label=label_m,
+            antimatter_label=label_am,
+            potential_term="V2 gAgA",
+            output_path="V2_asymmetry_ee_vs_eebar.pdf"
+        )

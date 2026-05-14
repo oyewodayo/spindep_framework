@@ -63,35 +63,3 @@ def build_pairs(datasets):
                 antimatter = b if not a.contains_antimatter else a
                 pairs.append((matter, antimatter))
     return pairs
-
-    pairs = []
-
-    for i in range(len(datasets)):
-
-        for j in range(i + 1, len(datasets)):
-
-            a = datasets[i]
-
-            b = datasets[j]
-
-            if are_compatible(a, b):
-
-                # ------------------------------------------------
-                # Identify matter dataset
-                # ------------------------------------------------
-
-                if not a.contains_antimatter:
-
-                    matter = a
-                    antimatter = b
-
-                else:
-
-                    matter = b
-                    antimatter = a
-
-                pairs.append(
-                    (matter, antimatter)
-                )
-
-    return pairs
