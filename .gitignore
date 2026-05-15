@@ -1,0 +1,22 @@
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Package build
+spindep.egg-info/
+
+# SPINDEP results
+results/
+*.pdf
+*.png
+
+# IDE files
+.vscode/
+.idea/
