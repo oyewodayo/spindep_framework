@@ -1,0 +1,36 @@
+# ============================================================
+# spin_run.yaml  — Config file for a full pipeline run
+# Usage: spin config spin_run.yaml
+# ============================================================
+command: run
+data: ./datasets                  # folder containing normalized/
+output: ./results                 # where to save all outputs
+
+
+---
+# ============================================================
+# spin_test.yaml  — Config file for a quick CPT test
+# Usage: spin config spin_test.yaml
+# ============================================================
+command: test
+matter:    ./data/electron_bounds.csv
+antimatter: ./data/positron_bounds.csv
+plot:      ./results/cpt_test.png
+save:      ./results/cpt_results.csv
+points:    300                    # lambda grid resolution
+
+
+---
+# ============================================================
+# spin_import.yaml  — Import from external folder and run
+# Usage: spin config spin_import.yaml
+# ============================================================
+command: import
+from: /path/to/my/csv/files      # your data folder (any structure)
+dest: ./datasets/normalized       # SPINDEP destination
+coupling: gAgA                    # gAgA | gsgs | gVgV | gpgp | gpgs
+potential: V2                     # V2 | V3 | V11 | V4+5 | etc.
+sector_matter: ee                 # ee | ep | en | nn | nN | eN
+sector_antimatter: eebar          # eebar | epbar | enbar | nnbar
+interaction_class: lepton-lepton  # lepton-lepton | lepton-nucleon | nucleon-nucleon
+run: true                         # run full pipeline after importing

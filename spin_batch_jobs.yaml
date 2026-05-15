@@ -1,0 +1,36 @@
+# ============================================================
+# spin_batch_jobs.yaml — Run multiple analyses in one command
+# Usage: spin batch spin_batch_jobs.yaml
+# ============================================================
+
+# Each item in this list is a separate analysis job.
+# Jobs run sequentially. Failed jobs are reported but do not
+# stop remaining jobs from running.
+
+- name: "gAgA V2 electron sector"
+  command: run
+  data: ./datasets/gAgA_V2
+  output: ./results/gAgA_V2
+
+- name: "Quick test — positronium vs torsion balance"
+  command: test
+  matter: ./data/torsion_ee.csv
+  antimatter: ./data/positronium_eebar.csv
+  plot: ./results/torsion_vs_positronium.png
+  save: ./results/torsion_vs_positronium.csv
+
+- name: "Import new Fadeev 2024 data and run"
+  command: import
+  from: /downloads/Fadeev2024_constraints
+  dest: ./datasets/normalized
+  coupling: gAgA
+  potential: V2
+  sector_matter: ee
+  sector_antimatter: eebar
+  interaction_class: lepton-lepton
+  run: true
+
+- name: "Gap analysis for full dataset"
+  command: run
+  data: ./datasets
+  output: ./results/full_run
