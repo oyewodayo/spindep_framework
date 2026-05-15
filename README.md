@@ -6,6 +6,30 @@ A Python pipeline for systematic analysis of matter–antimatter asymmetry in sp
 
 ---
 
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Physics Background](#physics-background)
+3. [Installation](#installation)
+4. [Quick Start](#quick-start)
+5. [Usage — Terminal Commands](#usage--terminal-commands)
+6. [Usage — Config Files](#usage--config-files)
+7. [Usage — Batch Processing](#usage--batch-processing)
+8. [Usage — Python API](#usage--python-api)
+9. [Dataset File Naming Convention](#dataset-file-naming-convention)
+10. [Data Preparation Reference](#data-preparation-reference)
+11. [Complete Command Reference](#complete-command-reference)
+12. [Output Files](#output-files)
+13. [Module Reference](#module-reference)
+14. [Interpreting Results](#interpreting-results)
+15. [Extending the Framework](#extending-the-framework)
+16. [Troubleshooting](#troubleshooting)
+17. [File Structure](#file-structure)
+18. [Citation](#citation)
+19. [License](#license)
+
+---
+
 ## Overview
 
 SPINDEP automates the comparison of experimental coupling-constant upper bounds between matter and antimatter sectors across a range of interaction ranges λ. For each compatible matter–antimatter pair, it:
@@ -70,76 +94,372 @@ A_α(λ) = [g_m(λ) − g_ā(λ)] / [g_m(λ) + g_ā(λ)]
 
 ### Prerequisites
 
-- Python 3.10+
-- Ubuntu/WSL (tested on Ubuntu 22.04)
+- Python 3.9+
+- Linux, macOS, or Windows WSL
 
-### Setup
-
-```bash
-git clone https://github.com/your-org/spindep_framework.git
-cd spindep_framework/spindep
-
-python3 -m venv .venv
-source .venv/bin/activate
-
-pip install -r requirements.txt
-```
-
-### Dependencies
-
-```
-numpy
-scipy
-pandas
-matplotlib
-reportlab
-```
-
-Install manually if needed:
+### Option 1 — One-line install (recommended)
 
 ```bash
-pip install numpy scipy pandas matplotlib reportlab
+git clone https://github.com/oyewodayo/spindep_framework.git
+cd spindep_framework
+bash install.sh
+```
+
+The install script will:
+
+1. Check your Python version (3.9+ required)
+2. Create a virtual environment (optional but recommended)
+3. Install all dependencies (numpy, scipy, pandas, matplotlib, reportlab, Pillow)
+4. Register the `spin` command globally so you can use it from any folder
+5. Verify the installation with `spin info`
+
+> **TIP:** After install, open a new terminal tab and type `spin --help` to confirm it works.
+
+### Option 2 — Manual install via pip
+
+```bash
+cd spindep_framework
+pip install -e .                  # installs 'spin' command
+pip install -e '.[full]'          # also installs pyyaml + seaborn
+```
+
+### Option 3 — Without installing (run directly)
+
+```bash
+export SPINDEP_HOME=/path/to/spindep_framework/spindep
+python3 spindep/cli.py run --data ./datasets
+```
+
+### Verify the installation
+
+```bash
+spin info
+spin info --data ./datasets       # also shows dataset summary
 ```
 
 ---
 
-## Project Structure
+## Quick Start
+
+```bash
+# Full analysis on your dataset folder
+spin run --data ./datasets
+
+# Quick CPT test on two CSV files — no folder structure needed
+spin test matter.csv antimatter.csv --plot
+
+# Check your datasets before a full run
+spin validate --data ./datasets
+
+# Import CSV files from anywhere and run immediately
+spin import --from ~/Downloads/new_data \
+            --coupling gAgA --potential V2 \
+            --sector-matter ee --sector-antimatter eebar \
+            --run
+```
+
+---
+
+## Usage — Terminal Commands
+
+The `spin` command covers the entire framework through simple sub-commands. All commands print coloured progress output and clear error messages.
+
+### `spin run` — Full pipeline
 
 ```
-spindep_framework/
-└── spindep/
-    ├── main.py                    # Entry point
-    ├── datasets/
-    │   └── normalized/            # Constraint CSV files, organised by coupling/class
-    │       ├── gAgA/
-    │       │   ├── lepton-lepton/
-    │       │   │   ├── 2Almasi2020_m_abs_ee.csv
-    │       │   │   ├── 3Fadeev_2022_2_m_abs_ebare.csv
-    │       │   │   └── ...
-    │       │   └── lepton-nucleon/
-    │       │       └── ...
-    │       ├── gpgp/
-    │       ├── gsgs/
-    │       ├── gVgV/
-    │       └── V1/
-    ├── results/
-    │   ├── plots/                 # PNG comparison plots (one per pair)
-    │   ├── tables/
-    │   │   ├── dataset_registry.csv   # All discovered datasets
-    │   │   └── asymmetry_summary.csv  # Per-pair statistics
-    │   └── reports/
-    │       └── asymmetry_report.pdf   # Full analysis report
-    └── src/
-        ├── __init__.py
-        ├── parser.py              # Dataset discovery & metadata extraction
-        ├── matcher.py             # Matter-antimatter pair matching
-        ├── interpolation.py       # Log-space interpolation
-        ├── asymmetry.py           # Asymmetry computation
-        ├── statistics.py          # Chi-squared sensitivity
-        ├── plotting.py            # Matplotlib plots
-        ├── reporting.py           # PDF report generation (reportlab)
-        └── pipeline.py            # Orchestration
+spin run --data DIR [--output DIR]
 ```
+
+Runs the complete analysis: dataset discovery → unit audit → gap analysis → constraint atlas → pair matching → asymmetry computation → PDF report.
+
+```bash
+spin run --data ./datasets
+spin run --data ./datasets --output ./my_results
+```
+
+**Outputs created:**
+
+- `results/reports/asymmetry_report_TIMESTAMP.pdf`
+- `results/figures/gap_analysis/*.png` (3 figures)
+- `results/figures/constraint_atlas/*.png` (one per potential + combined atlas)
+- `results/tables/asymmetry_summary.csv`
+- `results/tables/dataset_registry.csv`
+
+---
+
+### `spin test` — Quick CPT test
+
+```
+spin test MATTER.CSV ANTIMATTER.CSV [--plot FILE] [--save FILE] [--points N]
+```
+
+The most direct entry point for external researchers. Pass any two CSV files — no folder structure required.
+
+```bash
+# Minimal: just print results
+spin test electron_bounds.csv positron_bounds.csv
+
+# Save a plot
+spin test matter.csv antimatter.csv --plot
+
+# Save plot to a specific file
+spin test matter.csv antimatter.csv --plot cpt_result.png
+
+# Save full results table as CSV
+spin test matter.csv antimatter.csv --save results.csv
+
+# All options combined
+spin test matter.csv antimatter.csv --plot test.png --save out.csv --points 300
+```
+
+**Example output:**
+
+```
+  ──────────────────────────────────────────────────────────────
+  SPINDEP  ·  Quick CPT Test
+  ──────────────────────────────────────────────────────────────
+
+  ●  Matter:      2Kotler_2015_m_abs_ee
+  ●  Antimatter:  3Fadeev_2022_2_m_abs_ebare
+
+  CPT Asymmetry Results
+  ─────────────────────────
+    Lambda overlap:        1.75e-07 → 1.63e-05 m
+    Valid points:          300 / 300
+
+    Mean |A_alpha|:        1.0000  Strong CPT-sensitive asymmetry
+
+    chi2 (uniform 10%):   119989.9   dof=300
+    chi2 (weighted):      33391.2    dof=300
+    p-value (weighted):   0.000e+00  *** highly significant
+```
+
+---
+
+### `spin validate` — Pre-flight check
+
+```
+spin validate --data DIR [--verbose]
+```
+
+Run this before `spin run` to check datasets for issues. Reports unknown sectors, unit problems, and shows exactly which pairs will be matched.
+
+```bash
+spin validate --data ./datasets
+spin validate --data ./datasets --verbose    # shows all unrecognised files
+```
+
+---
+
+### `spin import` — Bring in data from anywhere
+
+```
+spin import --from DIR --coupling NAME --potential Vi \
+            --sector-matter S --sector-antimatter S [options]
+```
+
+Copy CSV files from any folder into the correct SPINDEP structure. Files are automatically renamed to follow the naming convention if needed.
+
+```bash
+# Import and run immediately
+spin import --from ~/Downloads/new_constraints  \
+            --coupling gAgA --potential V2      \
+            --sector-matter ee                  \
+            --sector-antimatter eebar           \
+            --run
+
+# Import to a custom destination
+spin import --from /data --dest ./myproject/datasets/normalized \
+            --coupling gsgs --potential V1                       \
+            --sector-matter nn --sector-antimatter nnbar
+```
+
+> **TIP:** The `--run` flag lets you go from raw CSV files to a full PDF report in one command.
+
+---
+
+### `spin gaps` and `spin atlas` — Figures only
+
+```bash
+# Gap analysis figures only
+spin gaps  --data ./datasets
+spin gaps  --data ./datasets --output ./my_figures
+
+# Constraint atlas only
+spin atlas --data ./datasets
+spin atlas --data ./datasets --output ./thesis_figures
+```
+
+---
+
+### `spin info` — Status check
+
+```bash
+spin info                           # framework status + dependency versions
+spin info --data ./datasets         # also shows dataset and pair counts
+```
+
+---
+
+### Getting help
+
+```bash
+spin --help                # all commands
+spin run --help            # help for a specific command
+spin import --help         # most options
+```
+
+---
+
+## Usage — Config Files
+
+Config files let you store all parameters in a YAML or JSON file and run with a single command. Ideal for reproducible analyses and sharing with collaborators.
+
+### Run config
+
+```yaml
+# myrun.yaml
+command: run
+data:    ./datasets
+output:  ./results
+```
+
+```bash
+spin config myrun.yaml
+```
+
+### CPT test config
+
+```yaml
+# mytest.yaml
+command:    test
+matter:     ./data/electron_torsion.csv
+antimatter: ./data/positronium_bounds.csv
+plot:       ./results/cpt_comparison.png
+save:       ./results/cpt_table.csv
+points:     300
+```
+
+### Import config
+
+```yaml
+# import_fadeev2024.yaml
+command:           import
+from:              /data/Fadeev2024
+dest:              ./datasets/normalized
+coupling:          gAgA
+potential:         V2
+sector_matter:     ee
+sector_antimatter: eebar
+interaction_class: lepton-lepton
+run:               true
+```
+
+### JSON format
+
+All config files also work as JSON:
+
+```json
+{
+  "command": "test",
+  "matter":     "electron_bounds.csv",
+  "antimatter": "positron_bounds.csv",
+  "plot":       "result.png",
+  "points":     300
+}
+```
+
+> **NOTE:** YAML requires PyYAML: `pip install pyyaml` (included in `pip install -e '.[full]'`)
+
+---
+
+## Usage — Batch Processing
+
+Run multiple independent analyses from a single jobs file. Failed jobs are reported but do not stop remaining jobs.
+
+```yaml
+# jobs.yaml
+
+- name: "gAgA V2 electron sector"
+  command: run
+  data: ./datasets/gAgA_V2
+  output: ./results/gAgA_V2
+
+- name: "Quick test — positronium vs torsion balance"
+  command: test
+  matter: ./data/torsion_ee.csv
+  antimatter: ./data/positronium_eebar.csv
+  plot: ./results/torsion_vs_positronium.png
+  save: ./results/torsion_vs_positronium.csv
+
+- name: "Import new Fadeev 2024 data and run"
+  command: import
+  from: /downloads/Fadeev2024_constraints
+  dest: ./datasets/normalized
+  coupling: gAgA
+  potential: V2
+  sector_matter: ee
+  sector_antimatter: eebar
+  interaction_class: lepton-lepton
+  run: true
+
+- name: "Gap analysis for full dataset"
+  command: run
+  data: ./datasets
+  output: ./results/full_run
+```
+
+```bash
+spin batch jobs.yaml
+```
+
+---
+
+## Usage — Python API
+
+All modules are importable directly for use in notebooks or custom scripts.
+
+### Quick test
+
+```python
+from spindep.src.parser          import load_dataset
+from spindep.src.unit_conversion import convert_lambda_to_metres
+from spindep.src.statistics      import chi_squared_from_datasets
+
+df_m = load_dataset('matter.csv')
+df_a = load_dataset('antimatter.csv')
+
+df_m, _, unit = convert_lambda_to_metres(df_m, 'matter', verbose=True)
+df_a, _, unit = convert_lambda_to_metres(df_a, 'antimatter', verbose=True)
+
+result = chi_squared_from_datasets(df_m, df_a)
+print(f'|A_alpha|     = {result["mean_abs_A"]:.4f}')
+print(f'chi2 weighted = {result["chi2_weighted"]:.1f}')
+print(f'p-value       = {result["pval_weighted"]:.3e}')
+```
+
+### Full pipeline
+
+```python
+from spindep.src.pipeline import run_pipeline
+
+run_pipeline(
+    dataset_root='./datasets/normalized',
+    results_root='./results'
+)
+```
+
+### Available modules
+
+| Module | Import | Key function |
+|--------|--------|-------------|
+| Parser | `from spindep.src.parser import discover_datasets` | `discover_datasets(root)` |
+| Matcher | `from spindep.src.matcher import build_pairs` | `build_pairs(datasets)` |
+| Asymmetry | `from spindep.src.asymmetry import compute_asymmetry` | `compute_asymmetry(df_m, df_a)` |
+| Statistics | `from spindep.src.statistics import chi_squared_from_datasets` | `chi_squared_from_datasets(df_m, df_a)` |
+| Unit conversion | `from spindep.src.unit_conversion import convert_lambda_to_metres` | `convert_lambda_to_metres(df, filename)` |
+| Gap analysis | `from spindep.src.gap_analysis import run_gap_analysis` | `run_gap_analysis(datasets, figures_dir)` |
+| Constraint plots | `from spindep.src.constraint_plots import run_constraint_plots` | `run_constraint_plots(datasets, ...)` |
 
 ---
 
@@ -158,11 +478,9 @@ All CSV files must follow a strict naming convention for the parser to correctly
 | `{Year}` | Publication year (4 digits) | `2022`, `2013` |
 | `m` | Matter-sector flag | always `m` |
 | `abs` | Absolute value flag | always `abs` |
-| `{sector}` | Fermion sector | `ee`, `ebare`, `ep`, `epbar`, `en`, `nn`, `emu`, `emubar` |
+| `{sector}` | Fermion sector | `ee`, `ebare`, `ep`, `epbar`, `en`, `nn` |
 
 ### Antimatter sector aliases recognised
-
-The parser automatically resolves alternate spellings to canonical sector names:
 
 | Filename token | Canonical sector |
 |---------------|-----------------|
@@ -173,70 +491,82 @@ The parser automatically resolves alternate spellings to canonical sector names:
 | `epbare` | `epbar` |
 | `nnbare` | `nnbar` |
 
-### Directory structure (for coupling/class extraction)
+### Directory structure
 
 ```
 datasets/normalized/{coupling}/{interaction_class}/{filename}.csv
-                     ^           ^
-                     |           |
-                     filepath.parts[-3]
-                                 filepath.parts[-2]
 ```
 
 Example:
 ```
 datasets/normalized/gAgA/lepton-lepton/2Fadeev_2022_4_m_abs_ee.csv
-         ↑          ↑    ↑
-         root       coupling  interaction_class
 ```
 
 ### CSV format
 
-Each CSV contains two columns with **no header**:
+Two columns, no header. Lambda in metres by default:
 
 ```
-lambda_m,coupling_abs
-1.23e-05,4.56e-12
-...
+1.754e-07,1.23e-11
+2.100e-07,9.87e-12
+3.500e-07,7.43e-12
 ```
 
 | Column | Unit | Description |
 |--------|------|-------------|
 | `lambda_m` | metres | Interaction range λ |
-| `coupling_abs` | dimensionless | Upper bound on |coupling constant| |
+| `coupling_abs` | dimensionless | Upper bound on \|coupling constant\| |
 
 Both columns must be strictly positive. Rows with non-numeric or non-positive values are silently dropped.
 
 ---
 
-## Running the Pipeline
+## Data Preparation Reference
 
-```bash
-cd spindep_framework/spindep
-source .venv/bin/activate
-python3 main.py
-```
+### Lambda unit tokens
 
-### Expected output
+| Filename token | Unit | Conversion to metres |
+|----------------|------|---------------------|
+| `_m_` (default) | metres | 1.0 (no conversion) |
+| `_millionev_` | MeV⁻¹ | × 1.9733e-13 |
+| `_ev_` | eV⁻¹ | × 1.9733e-7 |
+| `_cm_` | centimetres | × 1e-2 |
+| `_nm_` | nanometres | × 1e-9 |
+| `_fm_` | femtometres | × 1e-15 |
 
-```
-============================================================
-DISCOVERING DATASETS
-============================================================
-Found 273 datasets
-Found 14 valid pairs
---------------------------------------------------
-2Karshenboim_2011_1_millionev_abs_ep
-3Fadeev_2022_1_m_abs_ebarpabr
---------------------------------------------------
-...
-[REPORT] Saved → results/reports/asymmetry_report.pdf
-============================================================
-PIPELINE COMPLETE
-============================================================
-```
+### Supported coupling types
 
-### Output files
+| Coupling | Potential | Description |
+|----------|-----------|-------------|
+| `gAgA` | V2, V3 | Axial-axial (spin-spin) |
+| `gsgs` | V1, UNKNOWN | Scalar-scalar (monopole-monopole) |
+| `gVgV` | V1, V2, V3 | Vector-vector |
+| `gpgp` | V3 | Pseudoscalar-pseudoscalar (dipole-dipole) |
+| `gpgs` | V1, V2, V9+10 | Monopole-dipole |
+| `gAgV` | V11, V12+13 | Axial-vector |
+| `lepton-nucleon` | V1, V2, V3 | Lepton-nucleon cross-coupling |
+
+---
+
+## Complete Command Reference
+
+| Command | Flags | Description |
+|---------|-------|-------------|
+| `spin run` | `--data DIR  [--output DIR]` | Full pipeline |
+| `spin test` | `MATTER.CSV ANTI.CSV  [--plot FILE]  [--save FILE]  [--points N]` | Quick CPT test on two files |
+| `spin validate` | `--data DIR  [--verbose]` | Pre-flight checks |
+| `spin import` | `--from DIR  --coupling NAME  --potential Vi  --sector-matter S  --sector-antimatter S  [--interaction-class C]  [--dest DIR]  [--run]` | Import from any folder |
+| `spin gaps` | `--data DIR  [--output DIR]` | Gap figures only |
+| `spin atlas` | `--data DIR  [--output DIR]` | Constraint atlas only |
+| `spin config` | `CONFIG.yaml` | Run from config file |
+| `spin batch` | `JOBS.yaml` | Run multiple jobs |
+| `spin info` | `[--data DIR]` | Status and dependency info |
+| `spin --help` | | List all commands |
+| `spin CMD --help` | | Help for specific command |
+
+---
+
+## Output Files
 
 | File | Description |
 |------|-------------|
@@ -257,18 +587,9 @@ Responsible for discovering CSV files and extracting structured metadata from fi
 
 ```python
 discover_datasets(root: str | Path) -> list[ConstraintDataset]
-```
-Recursively finds all `.csv` files under `root` and returns a list of parsed `ConstraintDataset` objects.
-
-```python
 parse_dataset(filepath: str | Path) -> ConstraintDataset | None
-```
-Extracts `coupling`, `interaction_class`, `potential`, `source`, `sector`, `contains_antimatter`, and `label` from a single file path. Returns `None` on parse failure.
-
-```python
 load_dataset(filepath: str | Path) -> pd.DataFrame
 ```
-Reads a CSV and returns a cleaned DataFrame with columns `lambda_m` and `coupling_abs`, sorted by `lambda_m`.
 
 **ConstraintDataset fields:**
 
@@ -288,24 +609,11 @@ Reads a CSV and returns a cleaned DataFrame with columns `lambda_m` and `couplin
 
 ### `matcher.py`
 
-Pairs matter datasets with their antimatter conjugates.
-
 ```python
 build_pairs(datasets: list[ConstraintDataset]) -> list[tuple]
 ```
 
-Returns a list of `(matter_ds, antimatter_ds)` tuples. Two datasets form a valid pair when:
-
-- Same `coupling`
-- Same `potential`
-- Same `interaction_class`
-- Physically conjugate sectors (e.g. `ee` ↔ `eebar`)
-- Exactly one has `contains_antimatter = True`
-
-```python
-are_compatible(a: ConstraintDataset, b: ConstraintDataset) -> bool
-compatible_sectors(a_sector: str, b_sector: str) -> bool
-```
+Returns `(matter_ds, antimatter_ds)` tuples. Two datasets pair when they share the same `coupling`, `potential`, `interaction_class`, and have physically conjugate sectors.
 
 ---
 
@@ -315,7 +623,7 @@ compatible_sectors(a_sector: str, b_sector: str) -> bool
 make_log_interpolator(df: pd.DataFrame) -> Callable
 ```
 
-Constructs a log-log linear interpolator from a dataset. Returns a function `f(lam) -> g` that maps interaction range values to coupling bounds, extrapolating as `nan` outside the data range.
+Constructs a log-log linear interpolator. Returns `f(lam) -> g`, extrapolating as `nan` outside the data range.
 
 ---
 
@@ -329,7 +637,7 @@ compute_asymmetry(
 ) -> tuple[np.ndarray, np.ndarray, tuple] | tuple[None, None, None]
 ```
 
-Computes the asymmetry parameter on a shared log-spaced λ grid. Returns `(lam_grid, A, (g_m, g_a))` or `(None, None, None)` if the datasets have no overlapping λ range.
+Returns `(lam_grid, A, (g_m, g_a))` or `(None, None, None)` if no overlapping λ range exists.
 
 ---
 
@@ -343,23 +651,17 @@ chi_squared_sensitivity(
 ) -> tuple[float, int, float]
 ```
 
-Computes a χ² statistic measuring the significance of the difference between matter and antimatter coupling bounds, using a fractional uncertainty model σ = sigma_frac × (g_m + g_a)/2. Returns `(chi2_total, dof, p_value)`.
+Returns `(chi2_total, dof, p_value)`.
 
 ---
 
 ### `plotting.py`
 
 ```python
-plot_asymmetry(
-    lam, A, g_m, g_a,
-    matter_ds, antimatter_ds,
-    output_path
-)
+plot_asymmetry(lam, A, g_m, g_a, matter_ds, antimatter_ds, output_path)
 ```
 
-Generates a two-panel plot:
-- **Top panel**: log-log plot of matter and antimatter coupling bounds vs λ
-- **Bottom panel**: asymmetry parameter A_α vs λ with shaded regions indicating which sector is more constrained
+Two-panel plot: log-log coupling bounds (top) and asymmetry parameter A_α (bottom).
 
 ---
 
@@ -373,61 +675,13 @@ generate_report(
 ) -> Path
 ```
 
-Generates a structured PDF report using ReportLab. The report contains:
-- Cover page with run metadata
-- Summary table of all pairs
-- One dedicated section per pair: source metadata, statistics table, plot, and physical interpretation
-
----
-
-## Extending the Framework
-
-### Adding new sectors
-
-Edit `FERMION_MAP`, `ANTIMATTER_SECTORS`, `SECTOR_EQUIVALENCE`, and `SECTOR_ALIASES` in `parser.py`:
-
-```python
-# Add to FERMION_MAP
-"taubar": "τ̄",
-
-# Add to ANTIMATTER_SECTORS
-ANTIMATTER_SECTORS.add("taubar")
-
-# Add to SECTOR_EQUIVALENCE
-SECTOR_EQUIVALENCE["tau"] = ["taubar"]
-SECTOR_EQUIVALENCE["taubar"] = ["tau"]
-
-# Add filename alias if needed
-SECTOR_ALIASES["taub"] = "taubar"
-```
-
-### Adding new potentials
-
-Edit `POTENTIAL_INFO` in `classifier.py`:
-
-```python
-POTENTIAL_INFO["V12"] = {
-    "type": "tensor-tensor",
-    "description": "Tensor-tensor interaction",
-    "couplings": ["gTgT"]
-}
-```
-
-### Handling non-standard filenames
-
-For datasets whose filenames do not contain a parseable sector token, add an entry to `FILENAME_SECTOR_OVERRIDES` in `parser.py`:
-
-```python
-FILENAME_SECTOR_OVERRIDES["MyAuthor_2024"] = ("ep", False)
-#                                               ^     ^
-#                                              sector  contains_antimatter
-```
+Generates a structured PDF report with cover page, summary table, and one section per pair.
 
 ---
 
 ## Interpreting Results
 
-### asymmetry_summary.csv columns
+### `asymmetry_summary.csv` columns
 
 | Column | Description |
 |--------|-------------|
@@ -453,16 +707,100 @@ FILENAME_SECTOR_OVERRIDES["MyAuthor_2024"] = ("ep", False)
 | p < 0.05  | *   Marginal evidence |
 | p ≥ 0.05  | ns  No significant asymmetry detected |
 
-### Common diagnostics
+---
 
-**Found N datasets but 0 valid pairs**
-The most common cause is sector misclassification. Run the debug block in `pipeline.py` to inspect parsed sectors and check whether `contains_antimatter` is correctly assigned.
+## Extending the Framework
 
-**[SKIP] No overlapping lambda range**
-The matter and antimatter datasets cover different λ ranges. This is a physical/experimental limitation of the available data, not a code error.
+### Adding new sectors
 
-**[WARN] Unrecognized sector**
-The sector token extracted from the filename is not in `KNOWN_SECTORS`. Either add an alias to `SECTOR_ALIASES` or add a `FILENAME_SECTOR_OVERRIDES` entry.
+Edit `FERMION_MAP`, `ANTIMATTER_SECTORS`, `SECTOR_EQUIVALENCE`, and `SECTOR_ALIASES` in `parser.py`:
+
+```python
+ANTIMATTER_SECTORS.add("taubar")
+SECTOR_EQUIVALENCE["tau"] = ["taubar"]
+SECTOR_EQUIVALENCE["taubar"] = ["tau"]
+SECTOR_ALIASES["taub"] = "taubar"
+```
+
+### Adding new potentials
+
+Edit `POTENTIAL_INFO` in `classifier.py`:
+
+```python
+POTENTIAL_INFO["V12"] = {
+    "type": "tensor-tensor",
+    "description": "Tensor-tensor interaction",
+    "couplings": ["gTgT"]
+}
+```
+
+### Handling non-standard filenames
+
+Add an entry to `FILENAME_SECTOR_OVERRIDES` in `parser.py`:
+
+```python
+FILENAME_SECTOR_OVERRIDES["MyAuthor_2024"] = ("ep", False)
+#                                               ^     ^
+#                                              sector  contains_antimatter
+```
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `'spin' command not found` | Run `source ~/.bashrc` or open a new terminal. If still missing: `export PATH=$(python3 -m site --user-base)/bin:$PATH` |
+| `'spin' not found on Windows` | Use `python spindep/cli.py run --data ./datasets` or add `Scripts/` to PATH |
+| `ModuleNotFoundError: No module named 'spindep'` | Run from `spindep_framework/`, or set `export SPINDEP_HOME=/path/to/spindep_framework/spindep` |
+| `[SKIP] No overlapping lambda range` | Physical gap — not a bug. Run `spin validate` to inspect lambda ranges |
+| `[WARN] Unrecognized sector 'UNKNOWN'` | Filename sector token not recognised. Check naming convention and add alias if needed |
+| Found N datasets but 0 valid pairs | Sector misclassification — inspect parsed sectors via `spin validate --verbose` |
+| Unit conversion gives wrong results | If file is pre-converted, add filename to `ALREADY_CONVERTED` in `src/unit_conversion.py` |
+| Empty pages in PDF report | Replace `reporting.py` with the latest version |
+| `pip install` fails | Try `pip install --user -e .` or `pip install --break-system-packages -e .` |
+| `PyYAML not found` when using `spin config` | Run `pip install pyyaml` (or `pip install -e '.[full]'`) |
+
+---
+
+## File Structure
+
+```
+spindep_framework/
+├── install.sh                    # One-line installer
+├── setup.py                      # pip install config (registers 'spin')
+├── README.md                     # This file
+├── spin_run.yaml                 # Example config files
+├── spin_batch_jobs.yaml          # Example batch file
+└── spindep/                      # Main package
+    ├── __init__.py
+    ├── cli.py                    # 'spin' command entry point
+    ├── main.py                   # Direct Python entry point
+    ├── datasets/
+    │   └── normalized/           # All CSV datasets
+    │       ├── gAgA/
+    │       │   └── lepton-lepton/
+    │       ├── gsgs/
+    │       ├── gVgV/
+    │       └── gpgp/
+    ├── results/                  # Auto-generated
+    │   ├── reports/              # PDF reports
+    │   ├── plots/                # Per-pair asymmetry plots
+    │   ├── figures/              # Atlas + gap analysis
+    │   └── tables/               # CSV summaries
+    └── src/
+        ├── parser.py             # Dataset discovery & classification
+        ├── matcher.py            # Matter-antimatter pairing
+        ├── asymmetry.py          # A_alpha computation
+        ├── statistics.py         # Chi-squared (uniform + weighted)
+        ├── interpolation.py      # Log-linear interpolation
+        ├── unit_conversion.py    # Lambda unit standardisation
+        ├── gap_analysis.py       # Gap analysis figures
+        ├── constraint_plots.py   # Constraint atlas plots
+        ├── plotting.py           # Per-pair asymmetry plots
+        ├── reporting.py          # PDF report generation
+        └── pipeline.py           # Full pipeline orchestration
+```
 
 ---
 
@@ -475,3 +813,7 @@ If you use this framework in published work, please cite the relevant experiment
 ## License
 
 Academic use. Contact the author for redistribution rights.
+
+---
+
+*SPINDEP v1.0 · University of Ibadan · oyewodayo@gmail.com · 2026*
