@@ -32,42 +32,65 @@ USAGE
 
 INSTALL AS SYSTEM COMMAND
 --------------------------
-  # Option 1: alias in your shell profile
+  # Linux / macOS — add alias to shell profile
   echo 'alias spindep="python3 /path/to/spindep_cli.py"' >> ~/.bashrc
   source ~/.bashrc
   spindep run --data ./my_datasets
 
-  # Option 2: make executable
+  # Linux / macOS — make directly executable
   chmod +x spindep_cli.py
   ./spindep_cli.py run --data ./my_datasets
+
+  # Windows — run via Python directly
+  python spindep_cli.py run --data ./my_datasets
 """
 
 import argparse
 import sys
+import os
 import shutil
 import textwrap
+import platform
 from pathlib import Path
 from datetime import datetime
 
 
 # ============================================================
-# COLOUR OUTPUT (works on any terminal that supports ANSI)
+# COLOUR OUTPUT — safe on all platforms
 # ============================================================
 
-class C:
-    BOLD   = "\033[1m"
-    GREEN  = "\033[92m"
-    BLUE   = "\033[94m"
-    YELLOW = "\033[93m"
-    RED    = "\033[91m"
-    CYAN   = "\033[96m"
-    RESET  = "\033[0m"
-    GREY   = "\033[90m"
+def _ansi_supported() -> bool:
+    if not sys.stdout.isatty():
+        return False
+    if platform.system() == "Windows":
+        # Windows Terminal, VS Code integrated terminal, or ConEmu
+        return bool(
+            os.environ.get("WT_SESSION") or
+            os.environ.get("TERM_PROGRAM") or
+            os.environ.get("ANSICON") or
+            os.environ.get("TERM")
+        )
+    return True
 
-def ok(msg):    print(f"{C.GREEN}  ✓  {C.RESET}{msg}")
-def info(msg):  print(f"{C.BLUE}  ●  {C.RESET}{msg}")
-def warn(msg):  print(f"{C.YELLOW}  ⚠  {C.RESET}{msg}")
-def err(msg):   print(f"{C.RED}  ✗  {C.RESET}{msg}")
+
+_USE_COLOR = _ansi_supported()
+
+
+class C:
+    BOLD    = "\033[1m"  if _USE_COLOR else ""
+    GREEN   = "\033[92m" if _USE_COLOR else ""
+    BLUE    = "\033[94m" if _USE_COLOR else ""
+    YELLOW  = "\033[93m" if _USE_COLOR else ""
+    RED     = "\033[91m" if _USE_COLOR else ""
+    CYAN    = "\033[96m" if _USE_COLOR else ""
+    RESET   = "\033[0m"  if _USE_COLOR else ""
+    GREY    = "\033[90m" if _USE_COLOR else ""
+
+
+def ok(msg):    print(f"{C.GREEN}  [OK]  {C.RESET}{msg}")
+def info(msg):  print(f"{C.BLUE}  [...] {C.RESET}{msg}")
+def warn(msg):  print(f"{C.YELLOW}  [!!]  {C.RESET}{msg}")
+def err(msg):   print(f"{C.RED}  [ERR] {C.RESET}{msg}")
 def head(msg):  print(f"\n{C.BOLD}{C.CYAN}{msg}{C.RESET}\n{'─'*60}")
 def grey(msg):  print(f"{C.GREY}{msg}{C.RESET}")
 
@@ -84,8 +107,6 @@ def find_spindep_src():
     3. SPINDEP_HOME environment variable
     4. Standard install path ~/spindep_framework/spindep
     """
-    import os
-
     candidates = [
         Path(__file__).parent / "src",
         Path(__file__).parent.parent / "spindep" / "src",
@@ -104,7 +125,9 @@ def load_spindep():
     if src is None:
         err("Cannot find SPINDEP source files (src/parser.py).")
         err("Set the SPINDEP_HOME environment variable to your spindep directory:")
-        grey("  export SPINDEP_HOME=/path/to/spindep_framework/spindep")
+        grey("  Linux/macOS:  export SPINDEP_HOME=/path/to/spindep_framework/spindep")
+        grey("  Windows CMD:  set SPINDEP_HOME=C:\\path\\to\\spindep_framework\\spindep")
+        grey("  Windows PS:   $env:SPINDEP_HOME='C:\\path\\to\\spindep_framework\\spindep'")
         sys.exit(1)
 
     sys.path.insert(0, str(src.parent))
@@ -116,17 +139,17 @@ def load_spindep():
         from src.unit_conversion import convert_lambda_to_metres, audit_units
         from src.pipeline        import run_pipeline
         return {
-            "discover_datasets":        discover_datasets,
-            "load_dataset":             load_dataset,
-            "parse_dataset":            parse_dataset,
-            "ConstraintDataset":        ConstraintDataset,
-            "build_pairs":              build_pairs,
-            "compute_asymmetry":        compute_asymmetry,
-            "chi_squared_from_datasets":chi_squared_from_datasets,
-            "chi_squared_sensitivity":  chi_squared_sensitivity,
-            "convert_lambda_to_metres": convert_lambda_to_metres,
-            "audit_units":              audit_units,
-            "run_pipeline":             run_pipeline,
+            "discover_datasets":         discover_datasets,
+            "load_dataset":              load_dataset,
+            "parse_dataset":             parse_dataset,
+            "ConstraintDataset":         ConstraintDataset,
+            "build_pairs":               build_pairs,
+            "compute_asymmetry":         compute_asymmetry,
+            "chi_squared_from_datasets": chi_squared_from_datasets,
+            "chi_squared_sensitivity":   chi_squared_sensitivity,
+            "convert_lambda_to_metres":  convert_lambda_to_metres,
+            "audit_units":               audit_units,
+            "run_pipeline":              run_pipeline,
         }
     except ImportError as e:
         err(f"Failed to import SPINDEP modules: {e}")
@@ -149,7 +172,6 @@ def cmd_run(args):
         err(f"Data directory not found: {data_root}")
         sys.exit(1)
 
-    # Check if it's already normalized/ or needs to be
     normalized = data_root / "normalized" if (data_root / "normalized").exists() else data_root
 
     info(f"Data:    {normalized}")
@@ -158,16 +180,16 @@ def cmd_run(args):
     sp = load_spindep()
     sp["run_pipeline"](
         dataset_root=str(normalized),
-        results_root=str(results_root)
+        results_root=str(results_root),
     )
 
-    ok(f"Done! Report saved to: {results_root / 'reports'}")
+    ok(f"Done! Report saved to:  {results_root / 'reports'}")
     ok(f"Figures saved to:       {results_root / 'figures'}")
     ok(f"Tables saved to:        {results_root / 'tables'}")
 
 
 # ============================================================
-# COMMAND: test (quick CPT test on two CSV files)
+# COMMAND: test
 # ============================================================
 
 def cmd_test(args):
@@ -177,7 +199,7 @@ def cmd_test(args):
     """
     head("SPINDEP — Quick CPT Test")
 
-    matter_path    = Path(args.matter).resolve()
+    matter_path     = Path(args.matter).resolve()
     antimatter_path = Path(args.antimatter).resolve()
 
     for p in [matter_path, antimatter_path]:
@@ -187,22 +209,19 @@ def cmd_test(args):
 
     sp = load_spindep()
 
-    info(f"Matter:    {matter_path.name}")
-    info(f"Antimatter:{antimatter_path.name}")
+    info(f"Matter:     {matter_path.name}")
+    info(f"Antimatter: {antimatter_path.name}")
     print()
 
-    # Load data
     df_m = sp["load_dataset"](matter_path)
     df_a = sp["load_dataset"](antimatter_path)
 
-    # Unit conversion
-    df_m, _, unit_m = sp["convert_lambda_to_metres"](df_m, matter_path.stem,    verbose=False)
+    df_m, _, unit_m = sp["convert_lambda_to_metres"](df_m, matter_path.stem,     verbose=False)
     df_a, _, unit_a = sp["convert_lambda_to_metres"](df_a, antimatter_path.stem, verbose=False)
 
-    info(f"Matter lambda range:    {df_m['lambda_m'].min():.3e} → {df_m['lambda_m'].max():.3e} m ({unit_m})")
-    info(f"Antimatter lambda range:{df_a['lambda_m'].min():.3e} → {df_a['lambda_m'].max():.3e} m ({unit_a})")
+    info(f"Matter lambda range:    {df_m['lambda_m'].min():.3e} -> {df_m['lambda_m'].max():.3e} m ({unit_m})")
+    info(f"Antimatter lambda range:{df_a['lambda_m'].min():.3e} -> {df_a['lambda_m'].max():.3e} m ({unit_a})")
 
-    # Run analysis
     stats = sp["chi_squared_from_datasets"](df_m, df_a, n_points=args.points)
 
     if stats is None:
@@ -210,10 +229,9 @@ def cmd_test(args):
         err("The experiments probe different physical scales and cannot be directly compared.")
         sys.exit(0)
 
-    # Print results
     print()
     head("Results")
-    print(f"  Lambda overlap:      {stats['lam_grid'].min():.3e} → {stats['lam_grid'].max():.3e} m")
+    print(f"  Lambda overlap:      {stats['lam_grid'].min():.3e} -> {stats['lam_grid'].max():.3e} m")
     print(f"  Mean |A_alpha|:      {C.BOLD}{stats['mean_abs_A']:.4f}{C.RESET}  ", end="")
     if stats['mean_abs_A'] > 0.5:
         print(f"{C.RED}(Strong CPT-sensitive asymmetry){C.RESET}")
@@ -236,20 +254,18 @@ def cmd_test(args):
     print(f"  Mean uncertainty (antimatter):{stats['mean_sigma_a']*100:.1f}%")
     print(f"  chi2 ratio (weighted/uniform):{stats['improvement']:.3f}  (< 1 = more conservative)")
 
-    # Optional plot
     if args.plot:
         import numpy as np
         try:
-            import matplotlib.pyplot as plt
             import matplotlib
             matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
 
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
-
-            lam  = stats["lam_grid"]
-            g_m  = stats["g_m"]
-            g_a  = stats["g_a"]
-            A    = stats["A_alpha"]
+            lam   = stats["lam_grid"]
+            g_m   = stats["g_m"]
+            g_a   = stats["g_a"]
+            A     = stats["A_alpha"]
             valid = np.isfinite(g_m) & np.isfinite(g_a)
 
             ax1.plot(lam[valid], g_m[valid], "-",  color="#2d6a9f", lw=1.5,
@@ -259,7 +275,10 @@ def cmd_test(args):
             ax1.set_yscale("log"); ax1.set_xscale("log")
             ax1.set_ylabel("Coupling upper bound |g|")
             ax1.legend(fontsize=8); ax1.grid(True, which="both", ls=":", alpha=0.5)
-            ax1.set_title(f"CPT Asymmetry Test\n|A_α| = {stats['mean_abs_A']:.4f}  |  χ²(w) = {stats['chi2_weighted']:.0f}", fontsize=10)
+            ax1.set_title(
+                f"CPT Asymmetry Test\n|A_a| = {stats['mean_abs_A']:.4f}  |  "
+                f"chi2(w) = {stats['chi2_weighted']:.0f}", fontsize=10
+            )
 
             ax2.fill_between(lam[valid], A[valid], 0,
                              where=A[valid] > 0, color="#2d6a9f", alpha=0.3, label="Matter weaker")
@@ -267,32 +286,30 @@ def cmd_test(args):
                              where=A[valid] < 0, color="#b03a2e", alpha=0.3, label="Antimatter weaker")
             ax2.axhline(0, color="black", lw=0.8, ls="--")
             ax2.set_ylim(-1.1, 1.1)
-            ax2.set_ylabel("A_α"); ax2.set_xlabel("λ (m)")
+            ax2.set_ylabel("A_a"); ax2.set_xlabel("lambda (m)")
             ax2.legend(fontsize=8); ax2.grid(True, which="both", ls=":", alpha=0.5)
 
-            plot_path = Path(args.plot) if args.plot != True else Path("spindep_test_result.png")
+            plot_path = Path(args.plot) if args.plot is not True else Path("spindep_test_result.png")
             fig.tight_layout()
-            fig.savefig(plot_path, dpi=150, bbox_inches="tight")
+            fig.savefig(str(plot_path), dpi=150, bbox_inches="tight")
             plt.close(fig)
             ok(f"Plot saved: {plot_path}")
         except ImportError:
             warn("matplotlib not available — skipping plot")
 
-    # CSV export
     if args.save:
         import pandas as pd
         import numpy as np
-        lam  = stats["lam_grid"]
+        lam   = stats["lam_grid"]
         valid = np.isfinite(stats["g_m"]) & np.isfinite(stats["g_a"])
-        df_out = pd.DataFrame({
-            "lambda_m":    lam[valid],
-            "g_matter":    stats["g_m"][valid],
-            "g_antimatter":stats["g_a"][valid],
-            "A_alpha":     stats["A_alpha"][valid],
-            "sigma_m":     stats["sigma_frac_m"][valid],
-            "sigma_a":     stats["sigma_frac_a"][valid],
-        })
-        df_out.to_csv(args.save, index=False)
+        pd.DataFrame({
+            "lambda_m":     lam[valid],
+            "g_matter":     stats["g_m"][valid],
+            "g_antimatter": stats["g_a"][valid],
+            "A_alpha":      stats["A_alpha"][valid],
+            "sigma_m":      stats["sigma_frac_m"][valid],
+            "sigma_a":      stats["sigma_frac_a"][valid],
+        }).to_csv(args.save, index=False)
         ok(f"Results saved: {args.save}")
 
 
@@ -304,7 +321,7 @@ def cmd_validate(args):
     """Validate a dataset folder before running the full pipeline."""
     head("SPINDEP — Dataset Validation")
 
-    data_root = Path(args.data).resolve()
+    data_root  = Path(args.data).resolve()
     normalized = data_root / "normalized" if (data_root / "normalized").exists() else data_root
 
     if not normalized.exists():
@@ -312,19 +329,16 @@ def cmd_validate(args):
         sys.exit(1)
 
     sp = load_spindep()
-
     info(f"Scanning: {normalized}")
     datasets = sp["discover_datasets"](normalized)
     print()
 
-    # Counts
-    total   = len(datasets)
     unknown_pot = [d for d in datasets if d.potential == "UNKNOWN"]
     unknown_sec = [d for d in datasets if d.sector    == "UNKNOWN"]
     antimatter  = [d for d in datasets if d.contains_antimatter]
     matter      = [d for d in datasets if not d.contains_antimatter]
 
-    ok(f"Total datasets discovered:   {total}")
+    ok(f"Total datasets discovered:   {len(datasets)}")
     ok(f"Matter datasets:             {len(matter)}")
     ok(f"Antimatter datasets:         {len(antimatter)}")
 
@@ -338,11 +352,9 @@ def cmd_validate(args):
     else:
         ok("All datasets have recognised sectors")
 
-    # Unit audit
     print()
     sp["audit_units"](datasets, verbose=True)
 
-    # Pair count
     pairs = sp["build_pairs"](datasets)
     print()
     ok(f"Valid matter-antimatter pairs: {len(pairs)}")
@@ -354,7 +366,7 @@ def cmd_validate(args):
     else:
         info("Pairs that will be analysed:")
         for m, a in pairs:
-            print(f"    {C.BLUE}{m.filename}{C.RESET}  ×  {C.RED}{a.filename}{C.RESET}")
+            print(f"    {C.BLUE}{m.filename}{C.RESET}  x  {C.RED}{a.filename}{C.RESET}")
 
 
 # ============================================================
@@ -364,13 +376,12 @@ def cmd_validate(args):
 def cmd_import(args):
     """
     Import CSV files from an arbitrary folder into the correct
-    SPINDEP directory structure, then run the pipeline.
+    SPINDEP directory structure, then optionally run the pipeline.
     """
     head("SPINDEP — Import & Run")
 
-    src_dir  = Path(args.src).resolve()
-    dest_dir = Path(args.dest).resolve() if args.dest else Path("datasets/normalized")
-
+    src_dir           = Path(args.src).resolve()
+    dest_dir          = Path(args.dest).resolve() if args.dest else Path("datasets") / "normalized"
     coupling          = args.coupling
     interaction_class = args.interaction_class or "lepton-lepton"
     potential         = args.potential
@@ -395,11 +406,9 @@ def cmd_import(args):
 
     imported = []
     for f in csv_files:
-        # Try to construct a canonical filename if not already formatted
         stem = f.stem
         if "_m_abs_" not in stem and "_abs_" not in stem:
-            # Rename with potential and sector embedded
-            is_anti = any(tok in stem.lower() for tok in ["anti","bar","plus","positron"])
+            is_anti = any(tok in stem.lower() for tok in ["anti", "bar", "plus", "positron"])
             sector  = sector_a if is_anti else sector_m
             new_name = f"{potential}_{stem}_m_abs_{sector}.csv"
             warn(f"Renaming {f.name} -> {new_name}")
@@ -407,7 +416,7 @@ def cmd_import(args):
             new_name = f.name
 
         dest_file = target / new_name
-        shutil.copy2(f, dest_file)
+        shutil.copy2(str(f), str(dest_file))
         ok(f"Imported: {new_name}")
         imported.append(dest_file)
 
@@ -419,7 +428,7 @@ def cmd_import(args):
         sp = load_spindep()
         sp["run_pipeline"](
             dataset_root=str(dest_dir),
-            results_root=str(Path("results").resolve())
+            results_root=str(Path("results").resolve()),
         )
 
 
@@ -431,15 +440,16 @@ def cmd_gaps(args):
     """Generate gap analysis figures only."""
     head("SPINDEP — Gap Analysis")
 
-    data_root = Path(args.data).resolve()
+    data_root  = Path(args.data).resolve()
     normalized = data_root / "normalized" if (data_root / "normalized").exists() else data_root
-    out_dir = Path(args.output).resolve() if args.output else Path("results/figures")
+    out_dir    = Path(args.output).resolve() if args.output else Path("results") / "figures"
 
     sp = load_spindep()
     datasets = sp["discover_datasets"](normalized)
     info(f"Loaded {len(datasets)} datasets")
 
-    sys.path.insert(0, str(find_spindep_src().parent))
+    src = find_spindep_src()
+    sys.path.insert(0, str(src.parent))
     from src.gap_analysis import run_gap_analysis
     run_gap_analysis(datasets, figures_dir=out_dir)
     ok(f"Gap figures saved to: {out_dir / 'gap_analysis'}")
@@ -453,21 +463,22 @@ def cmd_atlas(args):
     """Generate constraint atlas figures only."""
     head("SPINDEP — Constraint Atlas")
 
-    data_root = Path(args.data).resolve()
+    data_root  = Path(args.data).resolve()
     normalized = data_root / "normalized" if (data_root / "normalized").exists() else data_root
-    out_dir = Path(args.output).resolve() if args.output else Path("results/figures")
+    out_dir    = Path(args.output).resolve() if args.output else Path("results") / "figures"
 
     sp = load_spindep()
     datasets = sp["discover_datasets"](normalized)
     info(f"Loaded {len(datasets)} datasets")
 
-    sys.path.insert(0, str(find_spindep_src().parent))
+    src = find_spindep_src()
+    sys.path.insert(0, str(src.parent))
     from src.constraint_plots import run_constraint_plots
     run_constraint_plots(
         datasets=datasets,
         summary_rows=[],
-        plots_dir=Path("results/plots"),
-        figures_dir=out_dir
+        plots_dir=Path("results") / "plots",
+        figures_dir=out_dir,
     )
     ok(f"Constraint atlas saved to: {out_dir / 'constraint_atlas'}")
 
@@ -487,79 +498,79 @@ Analyse matter-antimatter CPT asymmetry in exotic spin-dependent
 interactions from published experimental constraint datasets.
 
 {C.BOLD}Quick start:{C.RESET}
-  spindep run   --data ./my_datasets
-  spindep test  matter.csv antimatter.csv --plot
+  spindep run      --data ./my_datasets
+  spindep test     matter.csv antimatter.csv --plot
   spindep validate --data ./my_datasets
-        """)
+        """),
     )
 
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
 
     # ── run ──────────────────────────────────────────────────
-    p_run = sub.add_parser("run",
+    p = sub.add_parser("run",
         help="Full pipeline: discover, match, analyse, report",
         description="Run the complete SPINDEP pipeline on a dataset folder.")
-    p_run.add_argument("--data",   required=True, metavar="DIR",
+    p.add_argument("--data",   required=True, metavar="DIR",
         help="Path to dataset folder (containing normalized/ or CSV files)")
-    p_run.add_argument("--output", metavar="DIR",
+    p.add_argument("--output", metavar="DIR",
         help="Results output directory (default: <data>/../results)")
 
     # ── test ─────────────────────────────────────────────────
-    p_test = sub.add_parser("test",
+    p = sub.add_parser("test",
         help="Quick CPT test on two CSV files (no folder structure needed)",
         description="Perform a quick CPT asymmetry test between two CSV files.")
-    p_test.add_argument("matter",    metavar="MATTER.CSV",
+    p.add_argument("matter",     metavar="MATTER.CSV",
         help="Matter sector constraint CSV file")
-    p_test.add_argument("antimatter",metavar="ANTIMATTER.CSV",
+    p.add_argument("antimatter", metavar="ANTIMATTER.CSV",
         help="Antimatter sector constraint CSV file")
-    p_test.add_argument("--plot",    metavar="FILE.PNG", nargs="?", const=True,
+    p.add_argument("--plot",   metavar="FILE.PNG", nargs="?", const=True,
         help="Save asymmetry plot (default: spindep_test_result.png)")
-    p_test.add_argument("--save",    metavar="FILE.CSV",
+    p.add_argument("--save",   metavar="FILE.CSV",
         help="Save full results table as CSV")
-    p_test.add_argument("--points",  type=int, default=300, metavar="N",
+    p.add_argument("--points", type=int, default=300, metavar="N",
         help="Lambda grid resolution (default: 300)")
 
     # ── validate ─────────────────────────────────────────────
-    p_val = sub.add_parser("validate",
+    p = sub.add_parser("validate",
         help="Validate dataset folder structure before running",
         description="Check datasets for naming issues, unit problems, and pairing.")
-    p_val.add_argument("--data", required=True, metavar="DIR",
+    p.add_argument("--data", required=True, metavar="DIR",
         help="Path to dataset folder")
 
     # ── import ───────────────────────────────────────────────
-    p_imp = sub.add_parser("import",
+    p = sub.add_parser("import",
         help="Import CSV files from any folder into SPINDEP structure",
         description="Copy external CSV files into the correct SPINDEP folder structure.")
-    p_imp.add_argument("--from",  dest="src",  required=True, metavar="DIR",
+    p.add_argument("--from",  dest="src",  required=True, metavar="DIR",
         help="Source folder containing CSV files")
-    p_imp.add_argument("--dest",  metavar="DIR",
+    p.add_argument("--dest",  metavar="DIR",
         help="Destination (default: datasets/normalized)")
-    p_imp.add_argument("--coupling",            required=True, metavar="NAME",
+    p.add_argument("--coupling",           required=True, metavar="NAME",
         help="Coupling type (e.g. gAgA, gsgs, gVgV)")
-    p_imp.add_argument("--potential",           required=True, metavar="Vi",
+    p.add_argument("--potential",          required=True, metavar="Vi",
         help="Potential version (e.g. V2, V3, V11)")
-    p_imp.add_argument("--sector-matter",       required=True, metavar="SECTOR",
+    p.add_argument("--sector-matter",      required=True, metavar="SECTOR",
         help="Matter sector (e.g. ee, ep, en, nn)")
-    p_imp.add_argument("--sector-antimatter",   required=True, metavar="SECTOR",
+    p.add_argument("--sector-antimatter",  required=True, metavar="SECTOR",
         help="Antimatter sector (e.g. eebar, epbar, enbar)")
-    p_imp.add_argument("--interaction-class",   metavar="CLASS",
+    p.add_argument("--interaction-class",  metavar="CLASS",
         help="Interaction class (default: lepton-lepton)")
-    p_imp.add_argument("--run",  action="store_true",
+    p.add_argument("--run", action="store_true",
         help="Run full pipeline after importing")
 
     # ── gaps ─────────────────────────────────────────────────
-    p_gaps = sub.add_parser("gaps",
+    p = sub.add_parser("gaps",
         help="Generate gap analysis figures only",
         description="Generate the three gap analysis figures without running the full pipeline.")
-    p_gaps.add_argument("--data",   required=True, metavar="DIR")
-    p_gaps.add_argument("--output", metavar="DIR")
+    p.add_argument("--data",   required=True, metavar="DIR")
+    p.add_argument("--output", metavar="DIR")
 
     # ── atlas ────────────────────────────────────────────────
-    p_atl = sub.add_parser("atlas",
+    p = sub.add_parser("atlas",
         help="Generate constraint atlas figures only",
         description="Generate constraint atlas plots without running the full pipeline.")
-    p_atl.add_argument("--data",   required=True, metavar="DIR")
-    p_atl.add_argument("--output", metavar="DIR")
+    p.add_argument("--data",   required=True, metavar="DIR")
+    p.add_argument("--output", metavar="DIR")
 
     # ── dispatch ─────────────────────────────────────────────
     args = parser.parse_args()
@@ -568,15 +579,14 @@ interactions from published experimental constraint datasets.
         parser.print_help()
         sys.exit(0)
 
-    dispatch = {
+    {
         "run":      cmd_run,
         "test":     cmd_test,
         "validate": cmd_validate,
         "import":   cmd_import,
         "gaps":     cmd_gaps,
         "atlas":    cmd_atlas,
-    }
-    dispatch[args.command](args)
+    }[args.command](args)
 
 
 if __name__ == "__main__":

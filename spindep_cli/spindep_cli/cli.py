@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# // spindep/cli.py
+# spindep_cli/cli.py
 """
 SPINDEP 'spin' command — entry point registered by setup.py.
 
@@ -21,6 +21,51 @@ For help on any command:
   spin <command> --help
 """
 
+"""
+SPINDEP Command-Line Interface
+==============================
+
+A single entry-point command that gives non-technical users full
+access to the SPINDEP framework without touching any code.
+
+USAGE
+-----
+# Full pipeline on a dataset folder:
+  python spindep_cli.py run --data ./my_datasets
+
+# Analyse just one pair of CSV files:
+  python spindep_cli.py pair matter.csv antimatter.csv
+
+# Import datasets from a different directory structure:
+  python spindep_cli.py import --from /path/to/data --coupling gAgA --potential V2 --sector ee
+
+# Run gap analysis only:
+  python spindep_cli.py gaps --data ./my_datasets
+
+# Run constraint atlas only:
+  python spindep_cli.py atlas --data ./my_datasets
+
+# Validate your dataset folder before a full run:
+  python spindep_cli.py validate --data ./my_datasets
+
+# Quick CPT test on two CSV files (no folder structure needed):
+  python spindep_cli.py test matter.csv antimatter.csv --plot
+
+INSTALL AS SYSTEM COMMAND
+--------------------------
+  # Linux / macOS — add alias to shell profile
+  echo 'alias spindep="python3 /path/to/spindep_cli.py"' >> ~/.bashrc
+  source ~/.bashrc
+  spindep run --data ./my_datasets
+
+  # Linux / macOS — make directly executable
+  chmod +x spindep_cli.py
+  ./spindep_cli.py run --data ./my_datasets
+
+  # Windows — run via Python directly
+  python spindep_cli.py run --data ./my_datasets
+"""
+
 import argparse
 import sys
 import os
@@ -40,15 +85,12 @@ def _ansi_supported() -> bool:
     if not sys.stdout.isatty():
         return False
     if platform.system() == "Windows":
-        # Enable virtual terminal processing for legacy CMD / PowerShell
         try:
             import ctypes
             kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-            # ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
             kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
         except Exception:
             pass
-        # Detect modern Windows terminals
         return bool(
             os.environ.get("WT_SESSION") or
             os.environ.get("TERM_PROGRAM") or
@@ -95,18 +137,33 @@ def section(title: str):
 
 
 # ============================================================
-# SPINDEP MODULE LOADER
-# Finds src/ regardless of where the user runs 'spin' from
+# SPINDEP CORE LOADER
+# Resolves spindep regardless of where 'spin' is invoked
 # ============================================================
 
-def _find_src() -> "Path | None":
+def _find_core() -> "Path | None":
+    """
+    Search for the spindep/src directory in order of priority:
+      1. Sibling package in a monorepo layout  (../spindep/src)
+      2. Legacy in-tree src/                   (../src)
+      3. SPINDEP_HOME environment variable
+      4. Default install path under $HOME
+      5. Current working directory
+    """
     candidates = [
-        Path(__file__).parent,                                       # installed package
-        Path(__file__).parent.parent / "src",                        # dev: spindep/src
-        Path(os.environ.get("SPINDEP_HOME", "")) / "src",            # env var override
-        Path.home() / "spindep_framework" / "spindep" / "src",       # default install
-        Path.cwd() / "src",                                          # current directory
+        # monorepo: spindep-cli/ sits next to spindep-core/
+        Path(__file__).parent.parent.parent / "spindep" / "src",
+        # legacy in-tree layout
+        Path(__file__).parent.parent.parent / "spindep" / "src",
+        Path(__file__).parent.parent.parent / "src",
+        # env-var override
+        Path(os.environ.get("SPINDEP_HOME", "")) / "src",
+        # standard install
+        Path.home() / "spindep_framework" / "spindep" / "src",
+        Path.home() / "spindep_framework" / "spindep" / "src",
+        # cwd fallbacks
         Path.cwd() / "spindep" / "src",
+        Path.cwd() / "src",
     ]
     for c in candidates:
         if c.is_dir() and (c / "parser.py").exists():
@@ -115,16 +172,16 @@ def _find_src() -> "Path | None":
 
 
 def _load() -> dict:
-    """Import all SPINDEP modules, auto-detecting the source location."""
-    src = _find_src()
+    """Import all SPINDEP core modules, auto-detecting the source location."""
+    src = _find_core()
     if src is None:
-        err("Cannot locate SPINDEP source files.")
+        err("Cannot locate spindep source files (src/parser.py).")
         blank()
         grey("Try one of the following:")
-        grey("  Linux/macOS:  export SPINDEP_HOME=/path/to/spindep_framework/spindep")
-        grey("  Windows CMD:  set SPINDEP_HOME=C:\\path\\to\\spindep_framework\\spindep")
+        grey("  Linux/macOS:  export SPINDEP_HOME=/path/to/spindep")
+        grey("  Windows CMD:  set SPINDEP_HOME=C:\\path\\to\\spindep")
         grey("  Windows PS:   $env:SPINDEP_HOME='C:\\...'")
-        grey("  Or cd into the spindep_framework folder and run spin from there.")
+        grey("  Or clone spindep next to spindep-cli and re-run.")
         sys.exit(1)
 
     root = src.parent
@@ -143,7 +200,7 @@ def _load() -> dict:
         return {k: v for k, v in locals().items() if not k.startswith("_")}
     except ImportError as e:
         err(f"Import failed: {e}")
-        grey("  Make sure all src/*.py files are present.")
+        grey("  Make sure all spindep/src/*.py files are present.")
         sys.exit(1)
 
 
@@ -152,7 +209,7 @@ def _load() -> dict:
 # ============================================================
 
 def _resolve_data(data_arg: str) -> Path:
-    """Find the normalized/ directory from a user-supplied path."""
+    """Return the normalized/ sub-directory if it exists, else data_arg itself."""
     p = Path(data_arg).resolve()
     if not p.exists():
         err(f"Path not found: {p}")
@@ -571,7 +628,6 @@ def cmd_batch(args):
     import tempfile
     for i, job in enumerate(jobs, 1):
         print(f"{C.BOLD}{C.MAGENTA}  -- Job {i}/{len(jobs)}: {job.get('name', 'unnamed')} --{C.RESET}")
-        # Write a temp JSON config and delegate
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".json", delete=False, encoding="utf-8"
         ) as tmp:
@@ -597,11 +653,11 @@ def cmd_batch(args):
 
 def cmd_info(args):
     banner("SPINDEP  .  Framework Info")
-    src = _find_src()
+    src = _find_core()
     if src:
-        ok(f"SPINDEP source: {src}")
+        ok(f"spindep: {src}")
     else:
-        err("SPINDEP source not found")
+        err("spindep not found")
         blank()
         grey("  Set SPINDEP_HOME to fix this.")
 
@@ -674,6 +730,12 @@ def main():
         description=(
             f"{C.BOLD}{C.CYAN}SPINDEP — Spin-Dependent Exotic Interaction Analysis{C.RESET}\n"
             "  CPT symmetry tests via matter-antimatter constraint comparison."
+            "  Analyse matter-antimatter CPT asymmetry in exotic spin-dependent"
+            "  interactions from published experimental constraint datasets."
+            f"{C.BOLD}Quick start:{C.RESET}"
+            f"  spindep run      --data ./my_datasets"
+            f"  spindep test     matter.csv antimatter.csv --plot"
+            f"  spindep validate --data ./my_datasets"
         ),
         epilog=EPILOG,
     )

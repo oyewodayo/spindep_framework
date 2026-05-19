@@ -27,7 +27,7 @@ from pathlib import Path
 long_desc = Path("README.md").read_text() if Path("README.md").exists() else ""
 
 setup(
-    name="spindep",
+    name="spindep_cli",
     version="1.0.0",
     description=(
         "SPINDEP: Spin-Dependent Exotic Interaction Constraint "
@@ -44,7 +44,7 @@ setup(
     # Finds spindep/ package and all sub-packages
     packages=find_packages(),
 
-    # ── Python version ───────────────────────────────────────
+    # ── Python version ────────────────────────────────────────
     python_requires=">=3.9",
 
     # ── required dependencies ────────────────────────────────
@@ -68,7 +68,7 @@ setup(
     # After pip install, typing 'spin' anywhere runs cli.main()
     entry_points={
         "console_scripts": [
-            "spin = spindep.cli:main",
+            "spin = spindep_cli.cli:main",
         ],
     },
 
